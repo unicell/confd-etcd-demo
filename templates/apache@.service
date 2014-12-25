@@ -1,0 +1,37 @@
+[Unit]
+Description=Apache web server service on port %i
+
+# Requirements
+Requires=etcd.service
+Requires=docker.service
+Requires=apache-discovery@%i.service
+
+# Dependency ordering
+After=etcd.service
+After=docker.service
+Before=apache-discovery@%i.service
+
+[Service]
+# Let processes take awhile to start up (for first run Docker containers)
+TimeoutStartSec=0
+
+# Change killmode from "control-group" to "none" to let Docker remove
+# work correctly.
+KillMode=none
+
+# Get CoreOS environmental variables
+EnvironmentFile=/etc/environment
+
+# Pre-start and Start
+## Directives with "=-" are allowed to fail without consequence
+ExecStartPre=-/usr/bin/docker kill apache.%i
+ExecStartPre=-/usr/bin/docker rm apache.%i
+ExecStartPre=/usr/bin/docker pull unicell/confd-etcd-demo-web
+ExecStart=/usr/bin/docker run --name apache.%i -p ${COREOS_PRIVATE_IPV4}:%i:80 unicell/confd-etcd-demo-web
+
+# Stop
+ExecStop=/usr/bin/docker stop apache.%i
+
+[X-Fleet]
+# Don't schedule on the same machine as other Apache instances
+X-Conflicts=apache@*.service
